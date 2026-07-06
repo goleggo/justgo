@@ -1,0 +1,7 @@
+-- name: GetUser :one
+SELECT * FROM users
+WHERE id = {{if eq .DBEngine "postgres"}}$1{{else}}?{{end}} LIMIT 1;
+
+-- name: CreateUser :exec
+INSERT INTO users (id, name)
+VALUES ({{if eq .DBEngine "postgres"}}$1, $2{{else}}?, ?{{end}});

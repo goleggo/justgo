@@ -1,0 +1,30 @@
+package handler
+
+import (
+	"encoding/json"
+	"net/http"
+	"{{.ModulePath}}/internal/{{.DomainLower}}/usecase"
+)
+
+type {{.DomainCamel}}Handler struct {
+	usecase usecase.{{.DomainCamel}}Usecase
+}
+
+func New{{.DomainCamel}}Handler(u usecase.{{.DomainCamel}}Usecase) *{{.DomainCamel}}Handler {
+	return &{{.DomainCamel}}Handler{usecase: u}
+}
+
+func (h *{{.DomainCamel}}Handler) Get{{.DomainCamel}}(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		id = "default"
+	}
+	res, err := h.usecase.GetByID(ctx, id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(res)
+}

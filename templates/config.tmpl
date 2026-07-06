@@ -1,0 +1,88 @@
+package config
+
+import (
+	"log"
+	"os"
+
+	"github.com/joho/godotenv"
+)
+
+type Config struct {
+	Port        string
+	Env         string
+	{{if .UseDB}}
+	DatabaseURL string
+	{{end}}
+	{{if .UseObs}}
+	LogLevel    string
+	LogFormat   string
+	OtelExporterType string
+	OtelEndpoint string
+	{{end}}
+}
+
+func Load() *Config {
+	// Load .env file if it exists, ignore error if it doesn't
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment variables")
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	env := os.Getenv("ENV")
+	if env == "" {
+		env = "development"
+	}
+
+	{{if .UseDB}}
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		{{if eq .DBEngine "postgres"}}
+		dbURL = "postgres://postgres:postgres@localhost:5432/mydb?sslmode=disable"
+		{{else if eq .DBEngine "mysql"}}
+		dbURL = "root:root@tcp(localhost:3306)/mydb?parseTime=true"
+		{{else if eq .DBEngine "sqlite"}}
+		dbURL = "mydb.db"
+		{{end}}
+	}
+	{{end}}
+
+	{{if .UseObs}}
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "info"
+	}
+
+	logFormat := os.Getenv("LOG_FORMAT")
+	if logFormat == "" {
+		logFormat = "text"
+	}
+
+	otelExporterType := os.Getenv("OTEL_EXPORTER_TYPE")
+	if otelExporterType == "" {
+		otelExporterType = "stdout"
+	}
+
+	otelEndpoint := os.Getenv("OTEL_ENDPOINT")
+	if otelEndpoint == "" {
+		otelEndpoint = "localhost:4317"
+	}
+	{{end}}
+
+	return &Config{
+		Port:        port,
+		Env:         env,
+		{{if .UseDB}}
+		DatabaseURL: dbURL,
+		{{end}}
+		{{if .UseObs}}
+		LogLevel:    logLevel,
+		LogFormat:   logFormat,
+		OtelExporterType: otelExporterType,
+		OtelEndpoint: otelEndpoint,
+		{{end}}
+	}
+}

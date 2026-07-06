@@ -1,0 +1,8 @@
+package {{.DomainLower}}
+
+import "github.com/gin-gonic/gin"
+
+func (d *Domain) RegisterRoutes(r *gin.Engine) {
+	r.GET("/{{.DomainLower}}", d.Handler.Get{{.DomainCamel}})
+	// [justgo:routes]
+}

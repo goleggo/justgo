@@ -1,0 +1,31 @@
+.PHONY: run build test clean docker-up docker-down mock{{if .UseDB}} sqlc{{end}}
+
+run:
+	go run cmd/{{.ProjectName}}/main.go
+
+build:
+	go build -o bin/{{.ProjectName}} cmd/{{.ProjectName}}/main.go
+
+test:
+	go test ./...
+
+unit-test-coverage:
+	go test -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out
+
+clean:
+	rm -rf bin/
+
+docker-up:
+	docker compose up --build -d
+
+docker-down:
+	docker compose down
+
+mock:
+	go generate ./...
+
+{{if .UseDB}}
+sqlc:
+	sqlc generate
+{{end}}

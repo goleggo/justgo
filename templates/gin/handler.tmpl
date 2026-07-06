@@ -1,0 +1,29 @@
+package handler
+
+import (
+	"net/http"
+	"github.com/gin-gonic/gin"
+	"{{.ModulePath}}/internal/{{.DomainLower}}/usecase"
+)
+
+type {{.DomainCamel}}Handler struct {
+	usecase usecase.{{.DomainCamel}}Usecase
+}
+
+func New{{.DomainCamel}}Handler(u usecase.{{.DomainCamel}}Usecase) *{{.DomainCamel}}Handler {
+	return &{{.DomainCamel}}Handler{usecase: u}
+}
+
+func (h *{{.DomainCamel}}Handler) Get{{.DomainCamel}}(c *gin.Context) {
+	ctx := c.Request.Context()
+	id := c.Query("id")
+	if id == "" {
+		id = "default"
+	}
+	res, err := h.usecase.GetByID(ctx, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}

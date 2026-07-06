@@ -1,0 +1,70 @@
+.
+├── go.mod
+|   # file go.mod dipergunakan oleh go module (jika go mod diaktifkan).
+|
+├── Makefile
+|   # file Makefile dipergunakan oleh command `make`.
+|
+├── cmd/
+|   # folder cmd isinya adalah source code utama aplikasi.
+|   #
+|   # jika aplikasi merupakan sebuah app monolith, maka folder ini isinya
+|   # adalah langsung source code utama.
+|   # salah satu contoh, folder ini isinya adalah file-file bisnis logic utama,
+|   # seperti services dan repositories.
+|   #
+|   # jika arsitektur microservices diadopsi, dengan layout monorepo,
+|   # maka isi dari cmd adalah source code yang dibagi per service.
+|   |
+│   ├── your_app_1/
+│   ├── your_app_2/
+│   ├── your_app_3/
+│   └── ...
+|
+├── configs/
+|   # folder configs isinya adalah file konfigurasi.
+|
+├── deployments/
+|   # folder deployments isinya adalah file yang berhubungan dengan orchestration,
+|   # deployments, dan juga CD. Seperti docker-compose.yml, k8s file, dll.
+|
+├── docs/
+|   # folder docs isinya adalah file design dan dokumentasi.
+|
+├── internal/
+|   # folder internal isinya adalah file private aplikasi dan library.
+|   # kegunaan folder ini sama seperti `pkg`, perbedaannya adalah package
+|   # dalam folder internal ini hanya bisa di-import dalam project ini, tidak bisa di-import
+|   # ke project lain.
+|   #
+|   # pengelompokan dibagi berdasarkan bisnis domain dari aplikasi.
+|   # unit test diletakkan pada direktori yang sama dengan kode yang di-test,
+|   # dengan suffix penamaan *_test.go
+|   |
+│   ├── your_app_domain_1/
+│       ├── handler/
+│       ├── model/
+│       ├── repository/
+│       ├── usecase/
+│       └── ...
+│   ├── your_app_domain_2/
+│       ├── handler/
+│       ├── model/
+│       ├── repository/
+│       ├── usecase/
+│       └── ...
+│   └── ...
+|
+├── pkg/
+|   # folder pkg isinya adalah file utility yg di-reuse dalam project yang same,
+|   # atau bisa juga di re-use oleh project lain.
+|   |
+│   ├── your_public_lib_1/
+│   ├── your_public_lib_2/
+│   ├── your_public_lib_3/
+│   └── ...
+|
+├── env.example
+|   # file env needed
+|
+└── ...

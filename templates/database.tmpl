@@ -1,0 +1,31 @@
+package database
+
+import (
+	"database/sql"
+	"time"
+
+	{{if eq .DBEngine "postgres"}}
+	_ "github.com/jackc/pgx/v5/stdlib"
+	{{else if eq .DBEngine "mysql"}}
+	_ "github.com/go-sql-driver/mysql"
+	{{else if eq .DBEngine "sqlite"}}
+	_ "github.com/mattn/go-sqlite3"
+	{{end}}
+)
+
+func Connect(driverName, connStr string) (*sql.DB, error) {
+	db, err := sql.Open(driverName, connStr)
+	if err != nil {
+		return nil, err
+	}
+
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}

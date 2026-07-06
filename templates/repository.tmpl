@@ -1,0 +1,32 @@
+package repository
+
+import (
+	"context"
+	{{if .UseDB}}
+	"database/sql"
+	{{end}}
+	"{{.ModulePath}}/internal/{{.DomainLower}}/model"
+)
+
+//go:generate mockgen -source={{.DomainLower}}_repository.go -destination=../mocks/mock_{{.DomainLower}}_repository.go -package=mocks
+type {{.DomainCamel}}Repository interface {
+	GetByID(ctx context.Context, id string) (*model.{{.DomainCamel}}, error)
+}
+
+type {{.DomainLower}}Repository struct{
+	{{if .UseDB}}
+	db *sql.DB
+	{{end}}
+}
+
+func New{{.DomainCamel}}Repository({{if .UseDB}}db *sql.DB{{end}}) {{.DomainCamel}}Repository {
+	return &{{.DomainLower}}Repository{
+		{{if .UseDB}}
+		db: db,
+		{{end}}
+	}
+}
+
+func (r *{{.DomainLower}}Repository) GetByID(ctx context.Context, id string) (*model.{{.DomainCamel}}, error) {
+	return &model.{{.DomainCamel}}{ID: id}, nil
+}

@@ -1,0 +1,27 @@
+package {{.DomainLower}}
+
+import (
+	{{if .UseDB}}
+	"database/sql"
+	{{end}}
+	"{{.ModulePath}}/internal/{{.DomainLower}}/handler"
+	"{{.ModulePath}}/internal/{{.DomainLower}}/repository"
+	"{{.ModulePath}}/internal/{{.DomainLower}}/usecase"
+)
+
+type Domain struct {
+	Repo    repository.{{.DomainCamel}}Repository
+	Usecase usecase.{{.DomainCamel}}Usecase
+	Handler *handler.{{.DomainCamel}}Handler
+}
+
+func Init({{if .UseDB}}db *sql.DB{{end}}) *Domain {
+	repo := repository.New{{.DomainCamel}}Repository({{if .UseDB}}db{{end}})
+	usec := usecase.New{{.DomainCamel}}Usecase(repo)
+	hndl := handler.New{{.DomainCamel}}Handler(usec)
+	return &Domain{
+		Repo:    repo,
+		Usecase: usec,
+		Handler: hndl,
+	}
+}

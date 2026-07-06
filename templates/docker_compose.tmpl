@@ -1,0 +1,67 @@
+version: "3.8"
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - ENV=development
+      {{if .UseDB}}
+      {{if eq .DBEngine "postgres"}}
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/mydb?sslmode=disable
+      {{else if eq .DBEngine "mysql"}}
+      - DATABASE_URL=root:root@tcp(db:3306)/mydb?parseTime=true
+      {{else if eq .DBEngine "sqlite"}}
+      - DATABASE_URL=/data/mydb.db
+      {{end}}
+      {{end}}
+    {{if .UseDB}}
+    {{if ne .DBEngine "sqlite"}}
+    depends_on:
+      - db
+    {{else}}
+    volumes:
+      - sqlite_data:/data
+    {{end}}
+    {{end}}
+
+  {{if .UseDB}}
+  {{if eq .DBEngine "postgres"}}
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  {{else if eq .DBEngine "mysql"}}
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=mydb
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+  {{end}}
+  {{end}}
+
+{{if .UseDB}}
+volumes:
+  {{if eq .DBEngine "postgres"}}
+  pgdata:
+  {{else if eq .DBEngine "mysql"}}
+  mysql_data:
+  {{else if eq .DBEngine "sqlite"}}
+  sqlite_data:
+  {{end}}
+{{end}}

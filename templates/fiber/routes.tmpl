@@ -1,0 +1,8 @@
+package {{.DomainLower}}
+
+import "github.com/gofiber/fiber/v3"
+
+func (d *Domain) RegisterRoutes(app *fiber.App) {
+	app.Get("/{{.DomainLower}}", d.Handler.Get{{.DomainCamel}})
+	// [justgo:routes]
+}

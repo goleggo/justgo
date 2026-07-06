@@ -1,0 +1,28 @@
+package handler
+
+import (
+	"net/http"
+	"github.com/gofiber/fiber/v3"
+	"{{.ModulePath}}/internal/{{.DomainLower}}/usecase"
+)
+
+type {{.DomainCamel}}Handler struct {
+	usecase usecase.{{.DomainCamel}}Usecase
+}
+
+func New{{.DomainCamel}}Handler(u usecase.{{.DomainCamel}}Usecase) *{{.DomainCamel}}Handler {
+	return &{{.DomainCamel}}Handler{usecase: u}
+}
+
+func (h *{{.DomainCamel}}Handler) Get{{.DomainCamel}}(c fiber.Ctx) error {
+	ctx := c.Context()
+	id := c.Query("id")
+	if id == "" {
+		id = "default"
+	}
+	res, err := h.usecase.GetByID(ctx, id)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(res)
+}

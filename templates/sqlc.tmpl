@@ -1,0 +1,11 @@
+version: "2"
+sql:
+  - schema: "db/schema.sql"
+    queries: "db/queries/"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db"
+        sql_package: "database/sql"
+        emit_db_tags: true
+        emit_interface: true

@@ -1,0 +1,8 @@
+package {{.DomainLower}}
+
+import "net/http"
+
+func (d *Domain) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/{{.DomainLower}}", d.Handler.Get{{.DomainCamel}})
+	// [justgo:routes]
+}
