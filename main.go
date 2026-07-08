@@ -75,6 +75,8 @@ func loadProjectConfig(root string) (*JustGoConfig, error) {
 
 type ProjectConfig struct {
 	ProjectName string
+	ModulePath  string
+	Router      string
 	UseDB       bool
 	DBEngine    string
 	UseObs      bool
@@ -111,6 +113,8 @@ func main() {
 		} else {
 			runGranularGenFlow(os.Args[2], os.Args[3], os.Args[4:])
 		}
+	case "agents":
+		runAgentsFlow()
 	default:
 		showHelp()
 	}
@@ -127,6 +131,7 @@ func showHelp() {
 	fmt.Println("  gen <domain>                Generate all layers for a domain module (full code gen)")
 	fmt.Println("  gen <layer> <domain>        Generate only a specific layer for a domain module")
 	fmt.Println("  gen handler <domain> <act>  Append an endpoint method and register its route")
+	fmt.Println("  agents                      Generate AI agent/harness instructions (AGENTS.md, Claude Skill, Kiro steering)")
 	fmt.Println("\nSupported Layers:")
 	fmt.Println("  model, repository, usecase, handler, init, routes")
 	fmt.Println("\nHandler Append Options:")
@@ -137,6 +142,7 @@ func showHelp() {
 	fmt.Println("  justgo gen billing")
 	fmt.Println("  justgo gen model billing")
 	fmt.Println("  justgo gen handler billing Create --method=POST --path=/api/v1/billing")
+	fmt.Println("  justgo agents")
 	fmt.Println("\nNote: Mocks are automatically generated using mockgen (run 'make mock' to regenerate).")
 	fmt.Println("==========================================================")
 }
@@ -443,6 +449,138 @@ func runGenModuleFlow(domainName string) {
 	runMockgen(root, modulePath, domainName, config.DomainCamel)
 
 	fmt.Println("Done! Domain module generated and wired up successfully.")
+}
+
+const claudeSkillFrontmatter = `---
+name: justgo-workflow
+description: Use when adding domains, layers, or HTTP endpoints in this justgo-scaffolded project, or touching internal/* generated code, main.go codegen markers, or mocks — explains justgo CLI commands and conventions instead of hand-editing.
+---
+
+`
+
+const kiroSteeringFrontmatter = `---
+inclusion: always
+---
+
+`
+
+func writeAgentsDoc(path, content string, config ProjectConfig) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create directory for %s: %w", path, err)
+	}
+
+	t, err := template.New("agents").Parse(content)
+	if err != nil {
+		return fmt.Errorf("failed to parse template: %w", err)
+	}
+
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("failed to create file %s: %w", path, err)
+	}
+	defer f.Close()
+
+	if err := t.Execute(f, config); err != nil {
+		return fmt.Errorf("failed to execute template on %s: %w", path, err)
+	}
+
+	return nil
+}
+
+func runAgentsFlow() {
+	root, modulePath, projectName, err := detectProjectRoot()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	router := "gin"
+	useDB := false
+	dbEngine := ""
+	useObs := false
+	if cfg, err := loadProjectConfig(root); err == nil {
+		router = cfg.Router
+		useDB = cfg.UseDB
+		dbEngine = cfg.DBEngine
+		useObs = cfg.UseObs
+	}
+
+	fmt.Printf("Detected project '%s' (module: '%s', router: '%s') at: %s\n", projectName, modulePath, router, root)
+
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("\nWhich AI agent/harness docs do you want to generate?")
+	fmt.Println("  1. AGENTS.md (universal: Claude Code, Codex, Cursor, VS Code, ...)")
+	fmt.Println("  2. Claude Code Skill (.claude/skills/justgo-workflow/SKILL.md)")
+	fmt.Println("  3. Kiro steering (.kiro/steering/justgo-workflow.md)")
+	fmt.Println("  4. All of the above")
+	fmt.Print("Enter choice(s), comma-separated [default: 1]: ")
+	input, _ := reader.ReadString('\n')
+	choice := strings.TrimSpace(input)
+	if choice == "" {
+		choice = "1"
+	}
+
+	selected := map[string]bool{}
+	for _, part := range strings.Split(choice, ",") {
+		switch strings.TrimSpace(part) {
+		case "1":
+			selected["agents"] = true
+		case "2":
+			selected["skill"] = true
+		case "3":
+			selected["kiro"] = true
+		case "4":
+			selected["agents"] = true
+			selected["skill"] = true
+			selected["kiro"] = true
+		}
+	}
+	if len(selected) == 0 {
+		fmt.Println("No valid choice selected. Nothing generated.")
+		return
+	}
+
+	body, err := readTemplateContent(router, "agents_body")
+	if err != nil {
+		fmt.Printf("Error loading agents body template: %v\n", err)
+		return
+	}
+
+	config := ProjectConfig{
+		ProjectName: projectName,
+		ModulePath:  modulePath,
+		Router:      router,
+		UseDB:       useDB,
+		DBEngine:    dbEngine,
+		UseObs:      useObs,
+	}
+
+	if selected["agents"] {
+		path := filepath.Join(root, "AGENTS.md")
+		if err := writeAgentsDoc(path, body, config); err != nil {
+			fmt.Printf("Error writing AGENTS.md: %v\n", err)
+		} else {
+			fmt.Printf("Created: %s\n", path)
+		}
+	}
+	if selected["skill"] {
+		path := filepath.Join(root, ".claude", "skills", "justgo-workflow", "SKILL.md")
+		if err := writeAgentsDoc(path, claudeSkillFrontmatter+body, config); err != nil {
+			fmt.Printf("Error writing Claude Code Skill: %v\n", err)
+		} else {
+			fmt.Printf("Created: %s\n", path)
+		}
+	}
+	if selected["kiro"] {
+		path := filepath.Join(root, ".kiro", "steering", "justgo-workflow.md")
+		if err := writeAgentsDoc(path, kiroSteeringFrontmatter+body, config); err != nil {
+			fmt.Printf("Error writing Kiro steering doc: %v\n", err)
+		} else {
+			fmt.Printf("Created: %s\n", path)
+		}
+	}
+
+	fmt.Println("Done!")
 }
 
 func generateProject(projectName, goVersion, router string, useDB bool, dbEngine string, useObs bool, dependencies []string) error {

@@ -82,7 +82,26 @@ Append a new endpoint method to the handler and map its route mapping inside `ro
 *   `--method`: Specifies the HTTP method (`GET`, `POST`, `PUT`, `DELETE`). *Default: GET*
 *   `--path`: Custom endpoint path. *Default: /<domainName>/<actionName>*
 
-### 3. Regenerate Mocks
+### 3. Generate Agent/Harness Instructions (`agents`)
+
+Generate a short instructional doc that teaches an AI coding agent how to work with this justgo-scaffolded project — which commands to run to add domains/layers/endpoints, and which generated files/markers not to hand-edit (`// [justgo:imports]`, `// [justgo:wire]`, `// [justgo:routes]`, and the `mocks/` folder).
+
+```bash
+./justgo agents
+```
+
+You'll be prompted to pick which format(s) to write, since different agents/harnesses read different files:
+
+```
+1. AGENTS.md (universal: Claude Code, Codex, Cursor, VS Code, ...)
+2. Claude Code Skill (.claude/skills/justgo-workflow/SKILL.md)
+3. Kiro steering (.kiro/steering/justgo-workflow.md)
+4. All of the above
+```
+
+All three share the same content (tailored to the project's router/DB/observability config from `.justgo.json`) and only differ in file location and frontmatter. The command is safe to rerun any time — e.g. after enabling database scaffolding — it just overwrites the selected file(s).
+
+### 4. Regenerate Mocks
 Mocks are automatically created during module generation. If you add or modify any interface definitions in the repository or usecase layers, you can regenerate the mock files by running:
 ```bash
 make mock

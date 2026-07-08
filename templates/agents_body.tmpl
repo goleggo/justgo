@@ -1,0 +1,35 @@
+# {{.ProjectName}} — Agent Guide
+
+This project was scaffolded by the `justgo` CLI and expects ongoing changes to
+go through it rather than hand-written boilerplate.
+
+## Stack
+- HTTP router: {{.Router}}
+{{if .UseDB}}- Database: {{.DBEngine}} via sqlc{{end}}
+{{if .UseObs}}- Observability: github.com/goleggo/observer (slog + OpenTelemetry){{end}}
+
+## Adding functionality
+
+Add a new domain (model + repository + usecase + handler + wiring):
+
+    justgo gen <domain>
+
+Add a single layer only (model, repository, usecase, handler, init, routes):
+
+    justgo gen <layer> <domain>
+
+Append an endpoint action to an existing handler + route:
+
+    justgo gen handler <domain> <action> [--method=GET|POST|PUT|DELETE] [--path=/custom/path]
+
+## Rules for editing generated code
+
+- Never hand-edit between the `// [justgo:imports]` / `// [justgo:wire]` markers
+  in cmd/{{.ProjectName}}/main.go — `justgo gen <domain>` rewrites these blocks.
+- Never hand-edit around the `// [justgo:routes]` marker in
+  internal/<domain>/routes.go — use `justgo gen handler` to add routes instead.
+- After changing a repository or usecase interface, run `make mock` to
+  regenerate mocks rather than hand-editing internal/<domain>/mocks/.
+- To change generated boilerplate project-wide, add overrides under
+  templates/<router>/<name>.tmpl or templates/<name>.tmpl instead of editing
+  already-generated files.
