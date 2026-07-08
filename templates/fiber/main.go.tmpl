@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	{{if not .UseObs}}
 	"fmt"
+	{{end}}
+	{{if and .UseDB (not .UseObs)}}
 	"log"
+	{{end}}
 	"os"
 	"os/signal"
 	"sync"

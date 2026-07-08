@@ -3,8 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	{{if not .UseObs}}
 	"fmt"
+	{{end}}
+	{{if and .UseDB (not .UseObs)}}
 	"log"
+	{{end}}
 	"net/http"
 	"os"
 	"os/signal"
