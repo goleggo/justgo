@@ -1,0 +1,54 @@
+package repository
+
+import (
+	"context"
+	{{if .UseDB}}
+	"database/sql"
+	{{end}}
+
+	"{{.ModulePath}}/modules/{{.ModuleName}}"
+	"{{.ModulePath}}/modules/{{.ModuleName}}/internal/ports"
+)
+
+type {{.ModuleName}}Repository struct {
+	{{if .UseDB}}
+	db *sql.DB
+	{{end}}
+}
+
+// New builds the outbound adapter implementing ports.Repository.
+// {{if .UseDB}}Persistence uses the `{{.ModuleName}}_entities` table (see
+// db/modules/{{.ModuleName}}/schema.sql) — wire in the sqlc-generated queries
+// from ./sqlcgen here once implemented.{{end}}
+func New({{if .UseDB}}db *sql.DB{{end}}) ports.Repository {
+	return &{{.ModuleName}}Repository{
+		{{if .UseDB}}
+		db: db,
+		{{end}}
+	}
+}
+
+func (r *{{.ModuleName}}Repository) GetByID(ctx context.Context, id string) (*{{.ModuleName}}.{{.ModuleCamel}}, error) {
+	{{if .UseDB}}
+	return toDomain({{.ModuleName}}Row{ID: id}), nil
+	{{else}}
+	return &{{.ModuleName}}.{{.ModuleCamel}}{ID: id}, nil
+	{{end}}
+}
+
+{{if .UseDB}}
+// {{.ModuleName}}Row mirrors the `{{.ModuleName}}_entities` table.
+type {{.ModuleName}}Row struct {
+	ID string
+}
+
+// toDomain converts a persistence row into the module's public domain entity.
+func toDomain(row {{.ModuleName}}Row) *{{.ModuleName}}.{{.ModuleCamel}} {
+	return &{{.ModuleName}}.{{.ModuleCamel}}{ID: row.ID}
+}
+
+// fromDomain converts the public domain entity into a persistence row.
+func fromDomain(entity *{{.ModuleName}}.{{.ModuleCamel}}) {{.ModuleName}}Row {
+	return {{.ModuleName}}Row{ID: entity.ID}
+}
+{{end}}

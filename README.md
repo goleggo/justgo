@@ -14,6 +14,7 @@ JustGo is a lightweight, interactive command-line interface (CLI) tool designed 
 6. **Graceful Shutdown**: Signal listeners (`SIGINT`/`SIGTERM`) shut down HTTP routing servers and database pools sequentially, waiting up to 5 seconds for active requests to finish.
 7. **Bounded Code Generation**: Generate whole domain packages, individual architecture layers, or append specific route endpoints dynamically to files.
 8. **Automated Mock Generation (`mockgen`)**: Generates mock structures under a dedicated `mocks/` folder for usecases and repositories automatically. Integrates native `//go:generate` directives and maps a `make mock` target in the `Makefile` to allow on-demand mock regeneration.
+9. **Modular Monolith (Hexagonal) Architecture**: An alternative project blueprint, selectable during `justgo new`, that splits the app into isolated bounded-context modules (`modules/<name>/`) communicating through Ports & Adapters, with an experimental command to extract a module into its own standalone microservice. See [Modular Monolith (Hexagonal) Architecture](#modular-monolith-hexagonal-architecture) below.
 
 ---
 
@@ -42,8 +43,10 @@ This prompts you interactively for:
 *   Project Name
 *   Go Version (auto-detects system's installed Go version)
 *   Router (Gin, Fiber v3, or Standard Library)
+*   **Architecture Style**: Standard Clean Architecture (default) or **Modular Monolith (Hexagonal)** — see [Modular Monolith (Hexagonal) Architecture](#modular-monolith-hexagonal-architecture)
 *   Database Scaffolding (PostgreSQL, MySQL, SQLite, or None)
 *   Observability Stack (goleggo/observer integration toggle)
+*   Cross-Module Communication (Hexagonal only): Direct Synchronous Calls, In-Memory Dispatcher, or Watermill (RabbitMQ/Kafka)
 *   Custom dependencies to pre-install
 
 Upon confirmation, it creates files, initializes the Go module, runs `go get`, and cleans dependencies.
@@ -110,6 +113,57 @@ This runs the native Go command `go generate ./...` in the background.
 
 ---
 
+## Modular Monolith (Hexagonal) Architecture
+
+Projects scaffolded with `justgo new` → **Architecture Style: Modular Monolith (Hexagonal)** organize business logic into isolated bounded-context **modules** under `modules/<name>/`, each communicating through Ports & Adapters instead of directly reaching into each other's internals. This is based on the [Combining Modular Monolith and Hexagonal](https://notes.softwarearchitect.id/p/combining-modular-monolith-and-hexagonal) / [Developing Modular Monolith and Hexagonal](https://notes.softwarearchitect.id/p/developing-modular-monolith-and-hexagonal) architecture pattern.
+
+### Module Anatomy
+```text
+modules/billing/
+├── billing.go                      # public API: domain entity + inbound Service port (interface)
+├── internal/
+│   ├── ports/repository.go         # outbound port: Repository interface (private to this module)
+│   ├── service/billing_service.go  # Service implementation (business logic)
+│   └── adapter/
+│       ├── http/billing_handler.go       # inbound adapter (HTTP controller)
+│       └── repository/billing_repository.go # outbound adapter (DB access + ToDomain/FromDomain mapping)
+├── factory/factory.go              # wires repository -> service -> handler (this module's only DI code)
+├── module/module.go                # thin wrapper exposing New(...) + RegisterRoutes(...) for cmd/ composition
+└── mocks/mock_repository.go        # mockgen output for the Repository port
+```
+
+Go's compiler enforces the boundary: only code rooted at `modules/billing/...` can import `modules/billing/internal/...`. Other modules — and `cmd/`— may only ever depend on the public API file (`billing.go`) and `module/module.go`. If one module needs to call another synchronously, define a small local interface covering just the methods you need in the calling module rather than importing the other module's public `Service` wholesale (see the comment in `factory/factory.go`) — this mirrors how services would call each other over the network if later split apart.
+
+Each module also owns its own DB schema/queries under `db/modules/<name>/`, wired as an isolated `sql:` entry in the project's `sqlc.yaml` — no module should read or write another module's tables directly.
+
+### Generate a Module
+```bash
+./justgo gen module <name>
+
+# Example:
+./justgo gen module billing
+```
+This scaffolds the full module tree above, wires it into `cmd/<project>/main.go` via the `// [justgo:imports]` / `// [justgo:wire]` markers (calling `<name>.New(db, msgBus).RegisterRoutes(...)`), adds its `sql:` entry to `sqlc.yaml` if database scaffolding is enabled, runs `go mod tidy`, and regenerates its repository mock. Only available in projects scaffolded with the Hexagonal architecture (`.justgo.json`'s `"architecture": "hexagonal"`).
+
+### Cross-Module Communication
+Chosen once during `justgo new` and stored in `.justgo.json`:
+*   **Direct Synchronous Calls** (default): modules call each other's public `Service` interface directly, in-process.
+*   **In-Memory Dispatcher**: an in-process pub/sub bus (`pkg/bus/bus.go`, Go channels) for decoupled, asynchronous module-to-module events.
+*   **Watermill**: a real message broker (RabbitMQ or Kafka, `pkg/bus/`) for durable, cross-process eventing — useful if you expect to extract modules into separate services later.
+
+Every generated module's `factory.Build(...)` and `module.New(...)` already accept the chosen bus (or `db`) as a parameter so wiring stays consistent; publishing/subscribing to actual domain events is left to you to add in the module's service layer.
+
+### Extract a Module into a Microservice (Experimental)
+```bash
+./justgo extract <module> [--out=<dir>]
+
+# Example:
+./justgo extract billing --out=./billing-service
+```
+Copies `modules/<name>/` (plus its `pkg/database` / `pkg/bus` dependencies and `db/modules/<name>/`) into a new standalone directory, rewrites its import paths to a new Go module, bootstraps a fresh `cmd/<name>/main.go` + `.justgo.json` + `Dockerfile`/`docker-compose.yml`/`Makefile`, and runs `go mod init` / `go get` / `go mod tidy` so it builds independently. If the module still imports a sibling module (e.g. via a local cross-module interface), `extract` prints a warning listing every remaining reference for you to resolve by hand — it does not attempt to auto-resolve cross-module dependencies.
+
+---
+
 ## Template Overrides
 
 JustGo embeds standard boilerplate layouts. You can override these with your own custom designs by placing template files inside a `templates/` folder in the directory you run the command.
@@ -125,15 +179,26 @@ templates/
 ├── gin/
 │   ├── main.go.tmpl
 │   ├── handler.tmpl
-│   └── routes.tmpl
+│   ├── routes.tmpl
+│   └── hex_main.go.tmpl, hex_handler.tmpl, hex_module.tmpl  # Hexagonal architecture
 ├── Makefile.tmpl
 ├── model.tmpl
 ├── repository.tmpl
 ├── usecase.tmpl
 ├── init.tmpl
 ├── env.tmpl
-└── config.tmpl
+├── config.tmpl
+└── hex_public.tmpl, hex_ports.tmpl, hex_service.tmpl,       # Hexagonal architecture
+    hex_repository.tmpl, hex_factory.tmpl, hex_schema.tmpl,  # (router-independent)
+    hex_query.tmpl, hex_sqlc.tmpl, bus_inmemory.tmpl,
+    bus_watermill_common.tmpl, bus_watermill_rabbitmq.tmpl,
+    bus_watermill_kafka.tmpl
 ```
-You can use Go's `text/template` syntax inside these templates. The templates receive a configuration struct with the following boolean fields:
+You can use Go's `text/template` syntax inside these templates. The templates receive a configuration struct with the following fields (booleans unless noted):
 *   `.UseDB`: True if database scaffolding is enabled.
 *   `.UseObs`: True if the observability stack is enabled.
+*   `.Architecture` *(string)*: `"standard"` or `"hexagonal"`.
+*   `.MessageBroker` *(string, hexagonal only)*: `"direct"`, `"inmemory"`, or `"watermill"`.
+*   `.BrokerBackend` *(string, hexagonal + watermill only)*: `"rabbitmq"` or `"kafka"`.
+
+The `hex_*` templates additionally receive per-module fields when rendered via `justgo gen module`: `.ModuleName` (lowercase), `.ModuleCamel` (CamelCase), and `.ModulePath` (the project's Go module path).

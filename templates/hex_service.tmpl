@@ -1,0 +1,21 @@
+package service
+
+import (
+	"context"
+
+	"{{.ModulePath}}/modules/{{.ModuleName}}"
+	"{{.ModulePath}}/modules/{{.ModuleName}}/internal/ports"
+)
+
+type {{.ModuleName}}Service struct {
+	repo ports.Repository
+}
+
+// New builds the concrete Service implementation for {{.ModuleName}}.
+func New(repo ports.Repository) {{.ModuleName}}.Service {
+	return &{{.ModuleName}}Service{repo: repo}
+}
+
+func (s *{{.ModuleName}}Service) GetByID(ctx context.Context, id string) (*{{.ModuleName}}.{{.ModuleCamel}}, error) {
+	return s.repo.GetByID(ctx, id)
+}

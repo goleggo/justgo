@@ -1,0 +1,49 @@
+.
+├── go.mod
+|   # file go.mod dipergunakan oleh go module (jika go mod diaktifkan).
+|
+├── Makefile
+|   # file Makefile dipergunakan oleh command `make`.
+|
+├── cmd/
+|   # folder cmd isinya adalah source code utama aplikasi.
+|   |
+│   ├── your_app_1/
+│   ├── your_app_2/
+│   ├── your_app_3/
+│   └── ...
+|
+├── configs/
+|   # folder configs isinya adalah file konfigurasi.
+|
+├── deployments/
+|   # folder deployments isinya adalah file yang berhubungan dengan orchestration,
+|   # deployments, dan juga CD. Seperti docker-compose.yml, k8s file, dll.
+|
+├── docs/
+|   # folder docs isinya adalah file design dan dokumentasi.
+|
+├── modules/
+|   # folder modules isinya adalah bounded-context modules dalam Modular
+|   # Monolith (Hexagonal) architecture. Setiap module terisolasi secara
+|   # kompilasi (via Go `internal/` package rule) dan hanya mengekspos sebuah
+|   # public API (interface Service + entity/schema) di root package-nya.
+|   # Outbound ports (repository) dan implementasinya tetap private di
+|   # `modules/<name>/internal/`.
+|   #
+|   # gunakan `justgo gen module <name>` untuk generate module baru.
+|   └── ...
+|
+├── pkg/
+|   # folder pkg isinya adalah file utility yg di-reuse dalam project yang same,
+|   # atau bisa juga di re-use oleh project lain.
+|   |
+│   ├── your_public_lib_1/
+│   ├── your_public_lib_2/
+│   ├── your_public_lib_3/
+│   └── ...
+|
+├── env.example
+|   # file env needed
+|
+└── ...

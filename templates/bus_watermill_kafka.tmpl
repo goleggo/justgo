@@ -1,0 +1,86 @@
+package bus
+
+import (
+	"context"
+
+	"github.com/IBM/sarama"
+	"github.com/ThreeDotsLabs/watermill"
+	"github.com/ThreeDotsLabs/watermill-kafka/v3/pkg/kafka"
+	"github.com/ThreeDotsLabs/watermill/message"
+)
+
+// watermillBus adapts a Watermill Kafka publisher/subscriber pair to the
+// MessageBus port.
+type watermillBus struct {
+	publisher  *kafka.Publisher
+	subscriber *kafka.Subscriber
+}
+
+// NewWatermillBus connects to the Kafka broker(s) at brokerURL (comma
+// separated, e.g. "localhost:9092") and returns a MessageBus backed by
+// Watermill's Kafka Pub/Sub.
+func NewWatermillBus(brokerURL string) (MessageBus, error) {
+	logger := watermill.NewStdLogger(false, false)
+	brokers := []string{brokerURL}
+
+	publisher, err := kafka.NewPublisher(
+		kafka.PublisherConfig{
+			Brokers:   brokers,
+			Marshaler: kafka.DefaultMarshaler{},
+		},
+		logger,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	saramaSubscriberConfig := kafka.DefaultSaramaSubscriberConfig()
+	saramaSubscriberConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
+
+	subscriber, err := kafka.NewSubscriber(
+		kafka.SubscriberConfig{
+			Brokers:               brokers,
+			Unmarshaler:           kafka.DefaultMarshaler{},
+			OverwriteSaramaConfig: saramaSubscriberConfig,
+			ConsumerGroup:         "{{.ProjectName}}",
+		},
+		logger,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &watermillBus{publisher: publisher, subscriber: subscriber}, nil
+}
+
+func (b *watermillBus) Publish(ctx context.Context, topic string, payload []byte) error {
+	msg := message.NewMessage(watermill.NewUUID(), payload)
+	msg.SetContext(ctx)
+	return b.publisher.Publish(topic, msg)
+}
+
+func (b *watermillBus) Subscribe(ctx context.Context, topic string, handler Handler) error {
+	messages, err := b.subscriber.Subscribe(ctx, topic)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		for msg := range messages {
+			if err := handler(msg.Context(), msg.Payload); err != nil {
+				msg.Nack()
+				continue
+			}
+			msg.Ack()
+		}
+	}()
+
+	return nil
+}
+
+func (b *watermillBus) Close() error {
+	if err := b.publisher.Close(); err != nil {
+		return err
+	}
+	return b.subscriber.Close()
+}

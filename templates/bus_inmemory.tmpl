@@ -1,0 +1,54 @@
+package bus
+
+import (
+	"context"
+	"sync"
+)
+
+// Handler processes a message payload received from a topic subscription.
+type Handler func(ctx context.Context, payload []byte) error
+
+// MessageBus is the cross-module communication port. Modules depend on this
+// interface, not on any specific transport, so the underlying implementation
+// can be swapped (e.g. for a real broker) without touching module code.
+type MessageBus interface {
+	Publish(ctx context.Context, topic string, payload []byte) error
+	Subscribe(ctx context.Context, topic string, handler Handler) error
+	Close() error
+}
+
+// InMemoryBus is a synchronous, in-process pub/sub implementation of
+// MessageBus, suitable for a modular monolith where every module runs in
+// the same process.
+type InMemoryBus struct {
+	mu       sync.RWMutex
+	handlers map[string][]Handler
+}
+
+func NewInMemoryBus() *InMemoryBus {
+	return &InMemoryBus{handlers: make(map[string][]Handler)}
+}
+
+func (b *InMemoryBus) Subscribe(ctx context.Context, topic string, handler Handler) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.handlers[topic] = append(b.handlers[topic], handler)
+	return nil
+}
+
+func (b *InMemoryBus) Publish(ctx context.Context, topic string, payload []byte) error {
+	b.mu.RLock()
+	handlers := append([]Handler(nil), b.handlers[topic]...)
+	b.mu.RUnlock()
+
+	for _, h := range handlers {
+		if err := h(ctx, payload); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *InMemoryBus) Close() error {
+	return nil
+}

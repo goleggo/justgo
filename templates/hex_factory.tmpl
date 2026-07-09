@@ -1,0 +1,46 @@
+package factory
+
+import (
+	{{if .UseDB}}
+	"database/sql"
+	{{end}}
+	{{if ne .MessageBroker "direct"}}
+	"{{.ModulePath}}/pkg/bus"
+	{{end}}
+
+	"{{.ModulePath}}/modules/{{.ModuleName}}/internal/adapter/http"
+	"{{.ModulePath}}/modules/{{.ModuleName}}/internal/adapter/repository"
+	"{{.ModulePath}}/modules/{{.ModuleName}}/internal/service"
+)
+
+// Components holds this module's fully wired dependencies, ready to be used
+// by module.go.
+type Components struct {
+	Handler *http.{{.ModuleCamel}}Handler
+}
+
+// Build wires repository -> service -> handler for the {{.ModuleName}} module.
+// This is the module's only DI/wiring code; module.go just holds the result.
+//
+// Cross-module direct calls: if {{.ModuleName}} needs to call another
+// module's capability synchronously, add that module's public Service
+// interface (or a narrower local interface covering just the methods you
+// need, per idiomatic Go/hexagonal practice) as an extra parameter here and
+// pass it through from cmd/<project>/main.go's wiring — justgo cannot infer
+// an arbitrary cross-module dependency graph automatically.
+func Build(
+	{{if .UseDB}}
+	db *sql.DB,
+	{{end}}
+	{{if ne .MessageBroker "direct"}}
+	msgBus bus.MessageBus,
+	{{end}}
+) *Components {
+	repo := repository.New({{if .UseDB}}db{{end}})
+	svc := service.New(repo)
+	handler := http.New(svc)
+
+	return &Components{
+		Handler: handler,
+	}
+}

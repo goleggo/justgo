@@ -1,0 +1,19 @@
+package {{.ModuleName}}
+
+import "context"
+
+// {{.ModuleCamel}} is the domain entity shared as this module's public schema.
+// Other modules and adapters should depend on this type, not on any
+// persistence-specific row shape.
+type {{.ModuleCamel}} struct {
+	ID string `json:"id"`
+}
+
+// Service is the public inbound port for the {{.ModuleName}} module. Other
+// modules and cmd/ may depend on this interface; the concrete implementation
+// lives under internal/service and is never imported directly — only this
+// file and module.go are meant to be imported from outside this module's own
+// directory tree (internal/ is Go-enforced private to it).
+type Service interface {
+	GetByID(ctx context.Context, id string) (*{{.ModuleCamel}}, error)
+}

@@ -1,0 +1,16 @@
+package bus
+
+import "context"
+
+// Handler processes a message payload received from a topic subscription.
+type Handler func(ctx context.Context, payload []byte) error
+
+// MessageBus is the cross-module communication port, backed by Watermill.
+// Modules depend on this interface, not on the specific broker driver, so
+// the underlying transport can be swapped (or a module can be extracted to
+// its own service talking to the same broker) without touching module code.
+type MessageBus interface {
+	Publish(ctx context.Context, topic string, payload []byte) error
+	Subscribe(ctx context.Context, topic string, handler Handler) error
+	Close() error
+}

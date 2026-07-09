@@ -1,0 +1,7 @@
+-- name: Get{{.ModuleCamel}}ByID :one
+SELECT * FROM {{.ModuleName}}_entities
+WHERE id = {{if eq .DBEngine "postgres"}}$1{{else}}?{{end}} LIMIT 1;
+
+-- name: Create{{.ModuleCamel}} :exec
+INSERT INTO {{.ModuleName}}_entities (id)
+VALUES ({{if eq .DBEngine "postgres"}}$1{{else}}?{{end}});

@@ -1,0 +1,30 @@
+package http
+
+import (
+	stdhttp "net/http"
+
+	"github.com/gofiber/fiber/v3"
+
+	"{{.ModulePath}}/modules/{{.ModuleName}}"
+)
+
+type {{.ModuleCamel}}Handler struct {
+	service {{.ModuleName}}.Service
+}
+
+func New(s {{.ModuleName}}.Service) *{{.ModuleCamel}}Handler {
+	return &{{.ModuleCamel}}Handler{service: s}
+}
+
+func (h *{{.ModuleCamel}}Handler) Get{{.ModuleCamel}}(c fiber.Ctx) error {
+	ctx := c.Context()
+	id := c.Query("id")
+	if id == "" {
+		id = "default"
+	}
+	res, err := h.service.GetByID(ctx, id)
+	if err != nil {
+		return c.Status(stdhttp.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(res)
+}

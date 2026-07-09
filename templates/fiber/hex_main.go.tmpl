@@ -1,0 +1,194 @@
+package main
+
+import (
+	"context"
+	{{if not .UseObs}}
+	"fmt"
+	{{end}}
+	{{if and (not .UseObs) (or .UseDB (eq .MessageBroker "watermill"))}}
+	"log"
+	{{end}}
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/gofiber/fiber/v3"
+	"{{.ProjectName}}/internal/config"
+	{{if .UseDB}}
+	"{{.ProjectName}}/pkg/database"
+	{{end}}
+	{{if ne .MessageBroker "direct"}}
+	"{{.ProjectName}}/pkg/bus"
+	{{end}}
+	{{if .UseObs}}
+	"log/slog"
+	obsconfig "github.com/goleggo/observer/config"
+	obslog "github.com/goleggo/observer/log"
+	obstrace "github.com/goleggo/observer/trace"
+	{{end}}
+	// [justgo:imports]
+)
+
+func main() {
+	cfg := config.Load()
+
+	{{if .UseObs}}
+	// Setup structured logging using goleggo/observer
+	logger := obslog.SetupLogger(obsconfig.LogConfig{
+		Level:  cfg.LogLevel,
+		Format: cfg.LogFormat,
+	})
+	slog.SetDefault(logger)
+
+	ctx := context.Background()
+	// Setup tracing using goleggo/observer
+	tp, err := obstrace.SetupTrace(ctx, obsconfig.OTELConfig{
+		ServiceName:  "{{.ProjectName}}",
+		ExporterType: cfg.OtelExporterType,
+		Endpoint:     cfg.OtelEndpoint,
+		Insecure:     true,
+	})
+	if err != nil {
+		slog.Error("Failed to set up tracing", "error", err)
+	} else {
+		defer func() {
+			if err := tp.Shutdown(ctx); err != nil {
+				slog.Error("Failed to shut down tracer provider", "error", err)
+			}
+		}()
+	}
+	slog.Info("Starting {{.ProjectName}} in " + cfg.Env + " mode...")
+	{{else}}
+	fmt.Printf("Starting {{.ProjectName}} in %s mode...\n", cfg.Env)
+	{{end}}
+
+	{{if .UseDB}}
+	db, err := database.Connect("{{if eq .DBEngine "postgres"}}pgx{{else}}{{.DBEngine}}{{end}}", cfg.DatabaseURL)
+	if err != nil {
+		{{if .UseObs}}
+		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
+		{{else}}
+		log.Fatalf("Failed to connect to database: %v", err)
+		{{end}}
+	}
+	{{end}}
+
+	{{if eq .MessageBroker "inmemory"}}
+	msgBus := bus.NewInMemoryBus()
+	{{else if eq .MessageBroker "watermill"}}
+	msgBus, err := bus.NewWatermillBus(cfg.BrokerURL)
+	if err != nil {
+		{{if .UseObs}}
+		slog.Error("Failed to connect to message broker", "error", err)
+		os.Exit(1)
+		{{else}}
+		log.Fatalf("Failed to connect to message broker: %v", err)
+		{{end}}
+	}
+	{{end}}
+
+	app := fiber.New()
+
+	// [justgo:wire]
+
+	// wg tracks background routines to ensure they finish before shutdown
+	var wg sync.WaitGroup
+
+	go func() {
+		{{if .UseObs}}
+		slog.Info("Server listening on :" + cfg.Port)
+		{{else}}
+		fmt.Printf("Server listening on :%s\n", cfg.Port)
+		{{end}}
+		if err := app.Listen(":" + cfg.Port); err != nil {
+			{{if .UseObs}}
+			slog.Error("Server failed to run", "error", err)
+			{{else}}
+			fmt.Printf("Server failed: %v\n", err)
+			{{end}}
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	{{if .UseObs}}
+	slog.Info("Shutting down server...")
+	{{else}}
+	fmt.Println("Shutting down server...")
+	{{end}}
+
+	// 1. Shutdown HTTP server (stops accepting new connections)
+	ctxShutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := app.ShutdownWithContext(ctxShutdown); err != nil {
+		{{if .UseObs}}
+		slog.Error("Server HTTP shutdown failed", "error", err)
+		{{else}}
+		fmt.Printf("Server HTTP shutdown failed: %v\n", err)
+		{{end}}
+	}
+
+	// 2. Wait for background routines to finish
+	wgDone := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(wgDone)
+	}()
+	select {
+	case <-wgDone:
+		{{if .UseObs}}
+		slog.Info("All background routines finished cleanly.")
+		{{else}}
+		fmt.Println("All background routines finished cleanly.")
+		{{end}}
+	case <-time.After(3 * time.Second):
+		{{if .UseObs}}
+		slog.Warn("Shutdown timeout: forcing exit of background routines.")
+		{{else}}
+		fmt.Println("Shutdown timeout: forcing exit of background routines.")
+		{{end}}
+	}
+
+	// 3. Cleanly close database connections after workers finish
+	{{if .UseDB}}
+	{{if .UseObs}}
+	slog.Info("Closing database connection pool...")
+	{{else}}
+	fmt.Println("Closing database connection pool...")
+	{{end}}
+	if err := db.Close(); err != nil {
+		{{if .UseObs}}
+		slog.Error("Database connection pool close failed", "error", err)
+		{{else}}
+		fmt.Printf("Database connection pool close failed: %v\n", err)
+		{{end}}
+	}
+	{{end}}
+
+	// 4. Cleanly close the message bus connection
+	{{if ne .MessageBroker "direct"}}
+	{{if .UseObs}}
+	slog.Info("Closing message bus...")
+	{{else}}
+	fmt.Println("Closing message bus...")
+	{{end}}
+	if err := msgBus.Close(); err != nil {
+		{{if .UseObs}}
+		slog.Error("Message bus close failed", "error", err)
+		{{else}}
+		fmt.Printf("Message bus close failed: %v\n", err)
+		{{end}}
+	}
+	{{end}}
+
+	{{if .UseObs}}
+	slog.Info("Server exiting")
+	{{else}}
+	fmt.Println("Server exiting")
+	{{end}}
+}

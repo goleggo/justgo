@@ -19,6 +19,9 @@ type Config struct {
 	OtelExporterType string
 	OtelEndpoint string
 	{{end}}
+	{{if eq .MessageBroker "watermill"}}
+	BrokerURL string
+	{{end}}
 }
 
 func Load() *Config {
@@ -72,6 +75,17 @@ func Load() *Config {
 	}
 	{{end}}
 
+	{{if eq .MessageBroker "watermill"}}
+	brokerURL := os.Getenv("BROKER_URL")
+	if brokerURL == "" {
+		{{if eq .BrokerBackend "kafka"}}
+		brokerURL = "localhost:9092"
+		{{else}}
+		brokerURL = "amqp://guest:guest@localhost:5672/"
+		{{end}}
+	}
+	{{end}}
+
 	return &Config{
 		Port:        port,
 		Env:         env,
@@ -83,6 +97,9 @@ func Load() *Config {
 		LogFormat:   logFormat,
 		OtelExporterType: otelExporterType,
 		OtelEndpoint: otelEndpoint,
+		{{end}}
+		{{if eq .MessageBroker "watermill"}}
+		BrokerURL: brokerURL,
 		{{end}}
 	}
 }

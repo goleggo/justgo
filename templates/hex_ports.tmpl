@@ -1,0 +1,17 @@
+package ports
+
+import (
+	"context"
+
+	"{{.ModulePath}}/modules/{{.ModuleName}}"
+)
+
+//go:generate mockgen -source=repository.go -destination=../../mocks/mock_repository.go -package=mocks
+
+// Repository is the outbound port for {{.ModuleCamel}} persistence. It stays
+// private to this module (nested under internal/) so other modules can only
+// ever depend on the public Service interface in ../../{{.ModuleName}}.go,
+// never on how {{.ModuleName}} persists its data.
+type Repository interface {
+	GetByID(ctx context.Context, id string) (*{{.ModuleName}}.{{.ModuleCamel}}, error)
+}

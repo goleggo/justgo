@@ -1,0 +1,50 @@
+// Package module is deliberately separate from the module's public API
+// package ({{.ModuleName}}.go at the module root): factory -> internal/adapter/http
+// already imports that public package for the Service/entity types, so
+// putting this wrapper in the same package would create an import cycle
+// (<name> -> module -> factory -> http -> <name>). Keeping module.go in its
+// own subpackage keeps the public API package a dependency-free leaf.
+package module
+
+import (
+	{{if .UseDB}}
+	"database/sql"
+	{{end}}
+	"net/http"
+
+	"{{.ModulePath}}/modules/{{.ModuleName}}/factory"
+	{{if ne .MessageBroker "direct"}}
+	"{{.ModulePath}}/pkg/bus"
+	{{end}}
+)
+
+// Module is a thin wrapper holding this module's wired components. Only this
+// package and {{.ModuleName}}.go (the public API) are meant to be imported
+// from outside this module's own directory tree.
+type Module struct {
+	components *factory.Components
+}
+
+func New(
+	{{if .UseDB}}
+	db *sql.DB,
+	{{end}}
+	{{if ne .MessageBroker "direct"}}
+	msgBus bus.MessageBus,
+	{{end}}
+) *Module {
+	return &Module{
+		components: factory.Build(
+			{{if .UseDB}}
+			db,
+			{{end}}
+			{{if ne .MessageBroker "direct"}}
+			msgBus,
+			{{end}}
+		),
+	}
+}
+
+func (m *Module) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/{{.ModuleName}}", m.components.Handler.Get{{.ModuleCamel}})
+}

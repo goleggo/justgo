@@ -1,0 +1,5 @@
+-- {{.ModuleName}} module owns this table exclusively (per-module DB isolation:
+-- no other module should read or write {{.ModuleName}}_entities directly).
+CREATE TABLE IF NOT EXISTS {{.ModuleName}}_entities (
+    id VARCHAR(255) PRIMARY KEY
+);
